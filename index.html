@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>네온 핑퐁 (Neon Pong) - 캐릭터 스킬 배틀</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts (Orbitron) -->
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Orbitron', system-ui, -apple-system, sans-serif;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+      background-color: #0b0f19;
+      overflow: hidden;
+    }
+    
+    /* 네온 텍스트 효과 */
+    .neon-text-cyan {
+      text-shadow: 0 0 5px rgba(6, 182, 212, 0.5), 0 0 15px rgba(6, 182, 212, 0.8);
+    }
+    .neon-text-magenta {
+      text-shadow: 0 0 5px rgba(236, 72, 153, 0.5), 0 0 15px rgba(236, 72, 153, 0.8);
+    }
+    .neon-border-cyan {
+      box-shadow: 0 0 8px rgba(6, 182, 212, 0.4), inset 0 0 8px rgba(6, 182, 212, 0.4);
+    }
+    .neon-border-magenta {
+      box-shadow: 0 0 8px rgba(236, 72, 153, 0.4), inset 0 0 8px rgba(236, 72, 153, 0.4);
+    }
+
+    /* 화면 회전 권장 오버레이 */
+    @media (orientation: portrait) {
+      #rotate-overlay {
+        display: flex !important;
+      }
+    }
+  </style>
+</head>
+<body class="w-screen h-screen flex items-center justify-center relative">
+
+  <!-- 가로모드 권장 가이드 화면 -->
+  <div id="rotate-overlay" class="hidden fixed inset-0 bg-[#0b0f19] z-50 flex-col items-center justify-center p-6 text-center text-white">
+    <div class="animate-bounce mb-6">
+      <svg class="w-16 h-16 text-cyan-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-12 9h12"></path>
+      </svg>
+    </div>
+    <h2 class="text-2xl font-bold mb-2 tracking-widest text-cyan-400">화면 회전이 필요합니다</h2>
+    <p class="text-gray-400 max-w-sm text-sm leading-relaxed">
+      이 핑퐁 게임은 2인용 모바일 가로 모드에 최적화되어 있습니다. 기기의 자동 회전을 켠 후 <b>가로로 눕혀서</b> 플레이해주세요!
+    </p>
+  </div>
+
+  <!-- 메인 게임 영역 컨테이너 -->
+  <div id="game-container" class="relative w-full max-w-[960px] aspect-[16/10] bg-[#111827]/90 rounded-2xl border-4 border-slate-800 overflow-hidden flex flex-col justify-between shadow-2xl mx-2">
+    
+    <!-- 점수판 상단 바 -->
+    <div class="w-full flex justify-between items-center px-8 py-3 bg-[#0d131f]/90 border-b border-slate-800 z-10">
+      <!-- Player 1 Info & Score -->
+      <div class="flex items-center space-x-4">
+        <div class="w-3 h-8 bg-cyan-500 rounded shadow-[0_0_10px_#06b6d4]"></div>
+        <div>
+          <div class="flex items-center space-x-1.5">
+            <span class="text-[10px] text-cyan-400 tracking-wider font-bold">PLAYER 1</span>
+            <span id="p1-char-tag" class="text-[9px] px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 font-black uppercase">CHAR</span>
+          </div>
+          <div id="p1-score" class="text-3xl font-black text-cyan-400 neon-text-cyan leading-none">0</div>
+        </div>
+      </div>
+
+      <!-- 타이틀 -->
+      <div class="text-center">
+        <div class="text-[10px] text-gray-500 tracking-widest">NEON SKILL BATTLE</div>
+        <div class="text-xs font-bold text-yellow-400 tracking-wider uppercase animate-pulse">FIRST TO 10 WINS</div>
+      </div>
+
+      <!-- Player 2 Info & Score -->
+      <div class="flex items-center space-x-4 flex-row-reverse text-right">
+        <div class="w-3 h-8 bg-pink-500 rounded shadow-[0_0_10px_#ec4899] ml-4"></div>
+        <div>
+          <div class="flex items-center space-x-1.5 flex-row-reverse">
+            <span class="text-[10px] text-pink-400 tracking-wider font-bold">PLAYER 2</span>
+            <span id="p2-char-tag" class="text-[9px] px-1.5 py-0.5 rounded bg-pink-950 text-pink-300 font-black mr-1.5 uppercase">CHAR</span>
+          </div>
+          <div id="p2-score" class="text-3xl font-black text-pink-400 neon-text-magenta leading-none">0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 핑퐁 캔버스 영역 -->
+    <div class="relative flex-1 bg-[#090d16] overflow-hidden">
+      <canvas id="gameCanvas" class="w-full h-full block"></canvas>
+
+      <!-- 터치 조작 및 스킬 컨트롤 레이어 -->
+      
+      <!-- 플레이어 1 스킬 버튼 (좌측 중단) -->
+      <div class="absolute bottom-36 left-6 z-20 flex flex-col items-center">
+        <button id="p1-skill-btn" class="w-14 h-14 rounded-full border-2 border-cyan-500 bg-cyan-950/80 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.4)] transition-all duration-100 active:scale-90">
+          <!-- 스킬 아이콘 들어갈 자리 -->
+          <div id="p1-skill-icon-wrap" class="text-cyan-400 w-8 h-8 flex items-center justify-center"></div>
+        </button>
+        <span id="p1-skill-cd-label" class="text-[9px] font-black text-cyan-400 mt-1 uppercase tracking-wider">READY</span>
+      </div>
+
+      <!-- 플레이어 1 조이스틱 -->
+      <div id="joystick-left-area" class="absolute bottom-4 left-6 w-28 h-28 flex items-center justify-center z-20">
+        <div class="w-20 h-20 rounded-full border-2 border-cyan-500/30 bg-cyan-950/20 backdrop-blur-sm relative flex items-center justify-center neon-border-cyan">
+          <div id="joystick-left-head" class="w-10 h-10 rounded-full bg-cyan-500/80 shadow-[0_0_15px_#06b6d4] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 active:scale-95 transition-transform duration-75"></div>
+        </div>
+      </div>
+
+      <!-- 플레이어 2 스킬 버튼 (우측 중단) -->
+      <div class="absolute bottom-36 right-6 z-20 flex flex-col items-center">
+        <button id="p2-skill-btn" class="w-14 h-14 rounded-full border-2 border-pink-500 bg-pink-950/80 flex items-center justify-center shadow-[0_0_15px_rgba(236,72,153,0.4)] transition-all duration-100 active:scale-90">
+          <!-- 스킬 아이콘 들어갈 자리 -->
+          <div id="p2-skill-icon-wrap" class="text-pink-400 w-8 h-8 flex items-center justify-center"></div>
+        </button>
+        <span id="p2-skill-cd-label" class="text-[9px] font-black text-pink-400 mt-1 uppercase tracking-wider">READY</span>
+      </div>
+
+      <!-- 플레이어 2 조이스틱 -->
+      <div id="joystick-right-area" class="absolute bottom-4 right-6 w-28 h-28 flex items-center justify-center z-20">
+        <div class="w-20 h-20 rounded-full border-2 border-pink-500/30 bg-pink-950/20 backdrop-blur-sm relative flex items-center justify-center neon-border-magenta">
+          <div id="joystick-right-head" class="w-10 h-10 rounded-full bg-pink-500/80 shadow-[0_0_15px_#ec4899] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 active:scale-95 transition-transform duration-75"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 대기 및 메인 화면 오버레이 -->
+  <div id="start-modal" class="fixed inset-0 bg-[#090d16]/95 z-30 flex flex-col items-center justify-center p-4">
+    <div class="text-center max-w-md w-full bg-[#111827] border-2 border-slate-800 p-8 rounded-2xl shadow-2xl relative overflow-hidden">
+      <div class="absolute -top-10 -left-10 w-40 h-40 bg-cyan-500/10 rounded-full blur-2xl"></div>
+      <div class="absolute -bottom-10 -right-10 w-40 h-40 bg-pink-500/10 rounded-full blur-2xl"></div>
+
+      <h1 class="text-4xl font-black tracking-widest text-white mb-2 uppercase">NEON PONG</h1>
+      <p class="text-xs text-slate-400 mb-8 tracking-wider">SKILL HERO SELECTION BATTLE</p>
+
+      <div class="space-y-3 mb-8 text-left text-sm text-gray-300 bg-[#0b0f19] p-4 rounded-xl border border-slate-800">
+        <div class="flex items-center space-x-2 text-yellow-400 font-bold mb-1">
+          <span>🎮 게임 정보 및 패치 노트</span>
+        </div>
+        <p class="text-xs text-gray-400 leading-relaxed">
+          캐릭터를 골라 고유 스킬로 상대를 제압하세요! 스킬 쿨타임은 골을 넣거나 뺏겨도 <b>절대 리셋되지 않으므로</b> 더욱 세밀한 시간 안배가 필요합니다.
+        </p>
+      </div>
+
+      <button id="btn-to-char-select" class="w-full py-4 bg-gradient-to-r from-cyan-500 to-pink-500 hover:from-cyan-400 hover:to-pink-400 text-white font-bold text-lg rounded-xl transition duration-150 transform hover:scale-105 shadow-lg shadow-cyan-500/20 tracking-widest">
+        캐릭터 선택하러 가기
+      </button>
+    </div>
+  </div>
+
+  <!-- 캐릭터 선택 모달 오버레이 -->
+  <div id="char-select-modal" class="hidden fixed inset-0 bg-[#090d16]/98 z-30 flex flex-col items-center justify-center p-4">
+    <div class="w-full max-w-4xl bg-[#111827] border-2 border-slate-800 p-6 md:p-8 rounded-2xl shadow-2xl flex flex-col justify-between h-[90vh] max-h-[580px]">
+      
+      <div class="text-center">
+        <h2 class="text-2xl md:text-3xl font-black tracking-widest text-white uppercase">HERO SELECTION</h2>
+        <p class="text-[10px] md:text-xs text-gray-400">각 플레이어의 캐릭터를 선택해 주세요.</p>
+      </div>
+
+      <!-- 선택기 격자판 (P1 좌측, P2 우측) -->
+      <div class="grid grid-cols-2 gap-4 md:gap-8 my-4 flex-1 overflow-y-auto">
+        
+        <!-- Player 1 Selection Area -->
+        <div class="border-r border-slate-800/80 pr-2 md:pr-4 flex flex-col">
+          <h3 class="text-xs font-black text-cyan-400 tracking-widest mb-3 flex items-center justify-center space-x-2">
+            <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+            <span>PLAYER 1</span>
+          </h3>
+          <div class="space-y-3 flex-1 flex flex-col justify-center">
+            <!-- P1 오거 -->
+            <button id="p1-char-ogre" class="char-card w-full p-3 rounded-xl border-2 border-slate-800 bg-[#0c1220] flex items-center space-x-3 text-left transition duration-150 hover:border-cyan-500/60">
+              <div class="w-10 h-10 bg-cyan-950/80 rounded-lg flex items-center justify-center text-cyan-400">
+                <!-- 오거 스킬 아이콘 (근육질 팔) -->
+                <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M15 14c.2-1 .5-2 1.5-2.5 1.2-.6 2.5-.2 3 .5.6.8.5 2-.5 3s-2.5 1.5-3 3-1 3-2 3H10c-1.5 0-2.5-1-3-2V13c0-1 .5-1.5 1-2 .8-.8 1.5-2 1.5-3.5C9.5 5 11 3 13 3c2.5 0 3 2.5 3 4.5S15 11 15 13m-3-1v3" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-black text-white">오거 (Ogre)</span>
+                  <span class="text-[8px] bg-red-950 text-red-400 px-1 rounded">액티브</span>
+                </div>
+                <!-- 쿨타임 10초로 변경 -->
+                <p class="text-[10px] text-gray-400 leading-tight mt-0.5">공 가속 1.5배 (쿨타임 10초)</p>
+              </div>
+            </button>
+            <!-- P1 치타 -->
+            <button id="p1-char-cheetah" class="char-card w-full p-3 rounded-xl border-2 border-slate-800 bg-[#0c1220] flex items-center space-x-3 text-left transition duration-150 hover:border-cyan-500/60">
+              <div class="w-10 h-10 bg-cyan-950/80 rounded-lg flex items-center justify-center text-cyan-400">
+                <!-- 치타 스킬 아이콘 (바람) -->
+                <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M2 8h17M14 5h5a2 2 0 0 1 0 4M4 12h18M18 9h4a2 2 0 0 1 0 4M3 16h11M10 13h4a2 2 0 0 1 0 4" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-black text-white">치타 (Cheetah)</span>
+                  <span class="text-[8px] bg-green-950 text-green-400 px-1 rounded">패시브</span>
+                </div>
+                <p class="text-[10px] text-gray-400 leading-tight mt-0.5">기본 타격 시 가속 1.3배 고정</p>
+              </div>
+            </button>
+            <!-- P1 폴러 베어 -->
+            <button id="p1-char-bear" class="char-card w-full p-3 rounded-xl border-2 border-slate-800 bg-[#0c1220] flex items-center space-x-3 text-left transition duration-150 hover:border-cyan-500/60">
+              <div class="w-10 h-10 bg-cyan-950/80 rounded-lg flex items-center justify-center text-cyan-400">
+                <!-- 폴러베어 스킬 아이콘 (서리) -->
+                <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 2v20M2 12h20M12 12l5-5M12 12l-5 5M12 12l5 5M12 12l-5-5M12 5l3 3M12 5l-3 3M12 19l3-3M12 19l-3-3M5 12l3 3M5 12l3-3M19 12l-3 3M19 12l-3-3" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-black text-white">폴러 베어 (Bear)</span>
+                  <span class="text-[8px] bg-red-950 text-red-400 px-1 rounded">액티브</span>
+                </div>
+                <!-- 쿨타임 30초로 변경 -->
+                <p class="text-[10px] text-gray-400 leading-tight mt-0.5">상대 2.5초 빙결 (쿨타임 30초)</p>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Player 2 Selection Area -->
+        <div class="pl-2 md:pl-4 flex flex-col">
+          <h3 class="text-xs font-black text-pink-500 tracking-widest mb-3 flex items-center justify-center space-x-2">
+            <span class="w-2 h-2 rounded-full bg-pink-500"></span>
+            <span>PLAYER 2</span>
+          </h3>
+          <div class="space-y-3 flex-1 flex flex-col justify-center">
+            <!-- P2 오거 -->
+            <button id="p2-char-ogre" class="char-card w-full p-3 rounded-xl border-2 border-slate-800 bg-[#0c1220] flex items-center space-x-3 text-left transition duration-150 hover:border-pink-500/60">
+              <div class="w-10 h-10 bg-pink-950/80 rounded-lg flex items-center justify-center text-pink-400">
+                <!-- 오거 스킬 아이콘 (근육질 팔) -->
+                <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M15 14c.2-1 .5-2 1.5-2.5 1.2-.6 2.5-.2 3 .5.6.8.5 2-.5 3s-2.5 1.5-3 3-1 3-2 3H10c-1.5 0-2.5-1-3-2V13c0-1 .5-1.5 1-2 .8-.8 1.5-2 1.5-3.5C9.5 5 11 3 13 3c2.5 0 3 2.5 3 4.5S15 11 15 13m-3-1v3" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-black text-white">오거 (Ogre)</span>
+                  <span class="text-[8px] bg-red-950 text-red-400 px-1 rounded">액티브</span>
+                </div>
+                <!-- 쿨타임 10초로 변경 -->
+                <p class="text-[10px] text-gray-400 leading-tight mt-0.5">공 가속 1.5배 (쿨타임 10초)</p>
+              </div>
+            </button>
+            <!-- P2 치타 -->
+            <button id="p2-char-cheetah" class="char-card w-full p-3 rounded-xl border-2 border-slate-800 bg-[#0c1220] flex items-center space-x-3 text-left transition duration-150 hover:border-pink-500/60">
+              <div class="w-10 h-10 bg-pink-950/80 rounded-lg flex items-center justify-center text-pink-400">
+                <!-- 치타 스킬 아이콘 (바람) -->
+                <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M2 8h17M14 5h5a2 2 0 0 1 0 4M4 12h18M18 9h4a2 2 0 0 1 0 4M3 16h11M10 13h4a2 2 0 0 1 0 4" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-black text-white">치타 (Cheetah)</span>
+                  <span class="text-[8px] bg-green-950 text-green-400 px-1 rounded">패시브</span>
+                </div>
+                <p class="text-[10px] text-gray-400 leading-tight mt-0.5">기본 타격 시 가속 1.3배 고정</p>
+              </div>
+            </button>
+            <!-- P2 폴러 베어 -->
+            <button id="p2-char-bear" class="char-card w-full p-3 rounded-xl border-2 border-slate-800 bg-[#0c1220] flex items-center space-x-3 text-left transition duration-150 hover:border-pink-500/60">
+              <div class="w-10 h-10 bg-pink-950/80 rounded-lg flex items-center justify-center text-pink-400">
+                <!-- 폴러베어 스킬 아이콘 (서리) -->
+                <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 2v20M2 12h20M12 12l5-5M12 12l-5 5M12 12l5 5M12 12l-5-5M12 5l3 3M12 5l-3 3M12 19l3-3M12 19l-3-3M5 12l3 3M5 12l3-3M19 12l-3 3M19 12l-3-3" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-black text-white">폴러 베어 (Bear)</span>
+                  <span class="text-[8px] bg-red-950 text-red-400 px-1 rounded">액티브</span>
+                </div>
+                <!-- 쿨타임 30초로 변경 -->
+                <p class="text-[10px] text-gray-400 leading-tight mt-0.5">상대 2.5초 빙결 (쿨타임 30초)</p>
+              </div>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 모달 푸터 버튼 -->
+      <div class="text-center pt-2">
+        <button id="btn-start-game" disabled class="w-full py-3.5 bg-slate-800 text-slate-500 font-bold text-base rounded-xl transition duration-150 cursor-not-allowed uppercase tracking-wider">
+          전투 입장 (캐릭터를 선택하세요)
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 결과창 모달 (Game Over) -->
+  <div id="game-over-modal" class="hidden fixed inset-0 bg-[#090d16]/95 z-40 flex flex-col items-center justify-center p-4">
+    <div class="text-center max-w-md w-full bg-[#111827] border-2 border-slate-800 p-8 rounded-2xl shadow-2xl relative">
+      <div id="winner-glow" class="absolute inset-0 opacity-10 rounded-2xl blur-xl"></div>
+      
+      <div class="text-xs text-yellow-500 font-bold tracking-widest mb-2 uppercase">VICTORY CHALLENGE</div>
+      <h2 id="winner-text" class="text-3xl font-black mb-6 uppercase tracking-wider">PLAYER 1 WINS!</h2>
+      
+      <div class="flex justify-center items-center space-x-12 mb-8 bg-[#0b0f19] py-4 px-6 rounded-xl border border-slate-800">
+        <div class="text-center">
+          <div class="text-[10px] text-cyan-400">P1 SCORE</div>
+          <div id="modal-p1-score" class="text-3xl font-extrabold text-white mt-1">0</div>
+        </div>
+        <div class="text-xl text-slate-600 font-bold">VS</div>
+        <div class="text-center">
+          <div class="text-[10px] text-pink-400">P2 SCORE</div>
+          <div id="modal-p2-score" class="text-3xl font-extrabold text-white mt-1">0</div>
+        </div>
+      </div>
+
+      <button id="btn-restart" class="w-full py-4 bg-slate-800 hover:bg-slate-700 text-white font-bold text-lg rounded-xl transition duration-150 transform hover:scale-105 border border-slate-700 tracking-widest">
+        캐릭터 다시 고르고 시작하기
+      </button>
+    </div>
+  </div>
+
+  <!-- 인라인용 SVG 원본 딕셔너리 관리 -->
+  <script>
+    const SVGIcons = {
+      ogre: `<svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 14c.2-1 .5-2 1.5-2.5 1.2-.6 2.5-.2 3 .5.6.8.5 2-.5 3s-2.5 1.5-3 3-1 3-2 3H10c-1.5 0-2.5-1-3-2V13c0-1 .5-1.5 1-2 .8-.8 1.5-2 1.5-3.5C9.5 5 11 3 13 3c2.5 0 3 2.5 3 4.5S15 11 15 13m-3-1v3" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+      cheetah: `<svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M2 8h17M14 5h5a2 2 0 0 1 0 4M4 12h18M18 9h4a2 2 0 0 1 0 4M3 16h11M10 13h4a2 2 0 0 1 0 4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+      bear: `<svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v20M2 12h20M12 12l5-5M12 12l-5 5M12 12l5 5M12 12l-5-5M12 5l3 3M12 5l-3 3M12 19l3-3M12 19l-3-3M5 12l3 3M5 12l3-3M19 12l-3 3M19 12l-3-3" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+    };
+  </script>
+
+  <script>
+    // --- 글로벌 설정 및 환경 변수 ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // 타겟 물리 가상 해상도 (Aspect ratio 16:10)
+    const virtualWidth = 960;
+    const virtualHeight = 540;
+
+    // 점수 및 상태 관리
+    let p1Score = 0;
+    let p2Score = 0;
+    const winningScore = 10;
+    let gameState = 'ready'; // 'ready', 'playing', 'gameover'
+    
+    // 캐릭터 지정 상태 관리
+    let p1SelectedChar = null; // 'ogre', 'cheetah', 'bear'
+    let p2SelectedChar = null; // 'ogre', 'cheetah', 'bear'
+
+    // 패들 기본 정보
+    const paddleWidth = 15;
+    const paddleHeight = 110;
+    const paddleSpeed = 13.6; // 1.7배 향상된 민첩한 속도
+    const paddleOffset = 30; // 벽과의 격차
+
+    const p1Paddle = {
+      x: paddleOffset,
+      y: virtualHeight / 2 - paddleHeight / 2,
+      width: paddleWidth,
+      height: paddleHeight,
+      color: '#06b6d4',
+      glowColor: '#00e5ff'
+    };
+
+    const p2Paddle = {
+      x: virtualWidth - paddleOffset - paddleWidth,
+      y: virtualHeight / 2 - paddleHeight / 2,
+      width: paddleWidth,
+      height: paddleHeight,
+      color: '#ec4899',
+      glowColor: '#ff2a8d'
+    };
+
+    // 공 기본 정보
+    const ballSize = 14;
+    const initialSpeed = 6;
+    const maxSpeed = 34; // 활성화 오거 스킬(1.5배)을 위해 안전 최대 속도를 34로 상향
+    const speedMultiplier = 1.2; // 일반 튕김 가속
+
+    const ball = {
+      x: virtualWidth / 2,
+      y: virtualHeight / 2,
+      size: ballSize,
+      vx: 0,
+      vy: 0,
+      speed: initialSpeed,
+      color: '#ffffff'
+    };
+
+    // --- 스킬 쿨타임 및 버프 상태 관리 (점수 획득 시에도 리셋 안 됨) ---
+    // 오거 10초(10000ms), 폴러 베어 30초(30000ms)로 대폭 단축 조정 완료!
+    const P1_SKILL_LIMIT = { ogre: 10000, bear: 30000, cheetah: 0 };
+    const P2_SKILL_LIMIT = { ogre: 10000, bear: 30000, cheetah: 0 };
+
+    let p1SkillLastUsed = 0; // Epoch timestamp
+    let p2SkillLastUsed = 0;
+
+    // 버프 및 디버프 상태
+    let p1FrozenTimer = 0; // 밀리초단위 잔여 시간
+    let p2FrozenTimer = 0;
+
+    let p1OgreQueued = false; // 오거 스킬 시전 시 다음 타격을 대기하는 버프 필드
+    let p2OgreQueued = false;
+
+    // 이전 프레임 시각 보관 (델타 타임 구하기 용도)
+    let lastTime = Date.now();
+
+    // --- Web Audio API 효과음 생성 시스템 ---
+    let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    // 타격음 합성 ("딱!")
+    function playHitSound() {
+      try {
+        initAudio();
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(650, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.08);
+        gainNode.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.08);
+      } catch (error) {}
+    }
+
+    // 오거 스킬 사용 타격음 ("콰콰광!")
+    function playOgreHitSound() {
+      try {
+        initAudio();
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(350, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.25);
+        gainNode.gain.setValueAtTime(0.6, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.28);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.28);
+      } catch (error) {}
+    }
+
+    // 스킬 활성화 알림음 ("징-")
+    function playSkillCastSound() {
+      try {
+        initAudio();
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+        osc.frequency.linearRampToValueAtTime(880, audioCtx.currentTime + 0.2);
+        gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.22);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.22);
+      } catch (error) {}
+    }
+
+    // 빙결 사운드 ("끼이익- 탁!")
+    function playFreezeSound() {
+      try {
+        initAudio();
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.3);
+        gainNode.gain.setValueAtTime(0.25, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.3);
+      } catch (error) {}
+    }
+
+    // 박수갈채 ("와아아-")
+    function playApplauseSound() {
+      try {
+        initAudio();
+        if (!audioCtx) return;
+        const bufferSize = audioCtx.sampleRate * 2.5;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+        const totalClaps = 60;
+        const duration = 2.2;
+        for (let i = 0; i < totalClaps; i++) {
+          const startTime = audioCtx.currentTime + Math.random() * duration;
+          const noiseNode = audioCtx.createBufferSource();
+          noiseNode.buffer = buffer;
+          const filter = audioCtx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.value = 1000 + Math.random() * 800;
+          filter.Q.value = 2.5;
+          const gainNode = audioCtx.createGain();
+          const clapDuration = 0.04 + Math.random() * 0.07;
+          gainNode.gain.setValueAtTime(0, startTime);
+          gainNode.gain.linearRampToValueAtTime(0.12 + Math.random() * 0.1, startTime + 0.005);
+          gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + clapDuration);
+          noiseNode.connect(filter);
+          filter.connect(gainNode);
+          gainNode.connect(audioCtx.destination);
+          noiseNode.start(startTime);
+          noiseNode.stop(startTime + clapDuration);
+        }
+      } catch (error) {}
+    }
+
+    // --- 키보드 입력 상태 ---
+    const keys = {};
+    window.addEventListener('keydown', (e) => { 
+      keys[e.code] = true; 
+      
+      // PC 핫키 스킬 사용 바인딩
+      if (gameState === 'playing') {
+        if (e.code === 'Space') { // P1 스킬 트리거
+          useP1ActiveSkill();
+        }
+        if (e.code === 'ShiftRight' || e.code === 'Enter') { // P2 스킬 트리거
+          useP2ActiveSkill();
+        }
+      }
+    });
+    window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+    // --- 스킬 사용 판정 함수 ---
+    function useP1ActiveSkill() {
+      if (gameState !== 'playing') return;
+      if (p1SelectedChar === 'cheetah') return; // 치타는 패시브라 사용 불필요
+      
+      const now = Date.now();
+      const limit = P1_SKILL_LIMIT[p1SelectedChar];
+      if (now - p1SkillLastUsed < limit) return; // 쿨타임 미충족
+
+      // 스킬 발동
+      p1SkillLastUsed = now;
+      playSkillCastSound();
+
+      if (p1SelectedChar === 'ogre') {
+        p1OgreQueued = true;
+      } else if (p1SelectedChar === 'bear') {
+        p2FrozenTimer = 2500; // 상대방 2.5초간 빙결
+        playFreezeSound();
+      }
+    }
+
+    // P2 스킬 사용 판정
+    function useP2ActiveSkill() {
+      if (gameState !== 'playing') return;
+      if (p2SelectedChar === 'cheetah') return;
+      
+      const now = Date.now();
+      const limit = P2_SKILL_LIMIT[p2SelectedChar];
+      if (now - p2SkillLastUsed < limit) return;
+
+      // 스킬 발동
+      p2SkillLastUsed = now;
+      playSkillCastSound();
+
+      if (p2SelectedChar === 'ogre') {
+        p2OgreQueued = true;
+      } else if (p2SelectedChar === 'bear') {
+        p1FrozenTimer = 2500; // 상대방 2.5초간 빙결
+        playFreezeSound();
+      }
+    }
+
+    // UI 스킬 버튼 터치 바인딩
+    document.getElementById('p1-skill-btn').addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      useP1ActiveSkill();
+    });
+    document.getElementById('p2-skill-btn').addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      useP2ActiveSkill();
+    });
+    // PC 클릭 대응용
+    document.getElementById('p1-skill-btn').addEventListener('click', () => {
+      useP1ActiveSkill();
+    });
+    document.getElementById('p2-skill-btn').addEventListener('click', () => {
+      useP2ActiveSkill();
+    });
+
+    // --- 터치 조이스틱 로직 ---
+    const joyLeftHead = document.getElementById('joystick-left-head');
+    const joyRightHead = document.getElementById('joystick-right-head');
+    const joyLeftArea = document.getElementById('joystick-left-area');
+    const joyRightArea = document.getElementById('joystick-right-area');
+
+    const joyState = {
+      left: { active: false, startY: 0, currentY: 0, val: 0 },
+      right: { active: false, startY: 0, currentY: 0, val: 0 }
+    };
+
+    function setupJoystick(area, head, stateKey) {
+      const maxDrag = 35; // 드래그 범위
+
+      function handleTouchStart(e) {
+        initAudio();
+        const touch = e.touches[0];
+        joyState[stateKey].active = true;
+        joyState[stateKey].startY = touch.clientY;
+        joyState[stateKey].currentY = touch.clientY;
+        e.preventDefault();
+      }
+
+      function handleTouchMove(e) {
+        if (!joyState[stateKey].active) return;
+        
+        let touch = null;
+        for (let i = 0; i < e.touches.length; i++) {
+          const t = e.touches[i];
+          if (stateKey === 'left' && t.clientX < window.innerWidth / 2) {
+            touch = t;
+            break;
+          } else if (stateKey === 'right' && t.clientX >= window.innerWidth / 2) {
+            touch = t;
+            break;
+          }
+        }
+
+        if (!touch) return;
+
+        joyState[stateKey].currentY = touch.clientY;
+        let deltaY = joyState[stateKey].currentY - joyState[stateKey].startY;
+        
+        if (deltaY > maxDrag) deltaY = maxDrag;
+        if (deltaY < -maxDrag) deltaY = -maxDrag;
+
+        head.style.transform = `translate(-50%, calc(-50% + ${deltaY}px))`;
+        joyState[stateKey].val = deltaY / maxDrag;
+        e.preventDefault();
+      }
+
+      function handleTouchEnd(e) {
+        joyState[stateKey].active = false;
+        joyState[stateKey].val = 0;
+        head.style.transform = 'translate(-50%, -50%)';
+        e.preventDefault();
+      }
+
+      area.addEventListener('touchstart', handleTouchStart, { passive: false });
+      area.addEventListener('touchmove', handleTouchMove, { passive: false });
+      area.addEventListener('touchend', handleTouchEnd, { passive: false });
+      area.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+    }
+
+    setupJoystick(joyLeftArea, joyLeftHead, 'left');
+    setupJoystick(joyRightArea, joyRightHead, 'right');
+
+    // --- 공 리셋 기능 ---
+    function resetBall(servingPlayer) {
+      ball.x = virtualWidth / 2;
+      ball.y = virtualHeight / 2;
+      ball.speed = initialSpeed;
+
+      const angleDeg = (Math.random() * 40) - 20; // -20 to 20도 무작위 서브 각도
+      let angleRad = angleDeg * (Math.PI / 180);
+
+      if (servingPlayer === 2) {
+        angleRad = Math.PI - angleRad;
+      }
+
+      ball.vx = ball.speed * Math.cos(angleRad);
+      ball.vy = ball.speed * Math.sin(angleRad);
+    }
+
+    // --- 게임 초기화 및 재시작 ---
+    function initGame() {
+      p1Score = 0;
+      p2Score = 0;
+      document.getElementById('p1-score').innerText = '0';
+      document.getElementById('p2-score').innerText = '0';
+      
+      p1Paddle.y = virtualHeight / 2 - paddleHeight / 2;
+      p2Paddle.y = virtualHeight / 2 - paddleHeight / 2;
+
+      // 스킬 쿨타임 및 버프 상태도 새 매치 시에만 리셋
+      p1SkillLastUsed = 0;
+      p2SkillLastUsed = 0;
+      p1FrozenTimer = 0;
+      p2FrozenTimer = 0;
+      p1OgreQueued = false;
+      p2OgreQueued = false;
+
+      // 캐릭터 상단 라벨 동기화
+      document.getElementById('p1-char-tag').innerText = p1SelectedChar;
+      document.getElementById('p2-char-tag').innerText = p2SelectedChar;
+
+      // 스킬 버튼 아이콘 동기화
+      document.getElementById('p1-skill-icon-wrap').innerHTML = SVGIcons[p1SelectedChar] || '';
+      document.getElementById('p2-skill-icon-wrap').innerHTML = SVGIcons[p2SelectedChar] || '';
+
+      resetBall(Math.random() < 0.5 ? 1 : 2);
+    }
+
+    // --- 게임 종료 체크 ---
+    function checkGameOver() {
+      if (p1Score >= winningScore || p2Score >= winningScore) {
+        gameState = 'gameover';
+        
+        const winnerText = document.getElementById('winner-text');
+        const winnerGlow = document.getElementById('winner-glow');
+        const p1Label = document.getElementById('modal-p1-score');
+        const p2Label = document.getElementById('modal-p2-score');
+
+        p1Label.innerText = p1Score;
+        p2Label.innerText = p2Score;
+
+        if (p1Score >= winningScore) {
+          winnerText.innerText = "PLAYER 1 WINS!";
+          winnerText.className = "text-3xl font-black mb-6 tracking-wider text-cyan-400 neon-text-cyan";
+          winnerGlow.className = "absolute inset-0 opacity-20 rounded-2xl blur-xl bg-cyan-500";
+        } else {
+          winnerText.innerText = "PLAYER 2 WINS!";
+          winnerText.className = "text-3xl font-black mb-6 tracking-wider text-pink-400 neon-text-magenta";
+          winnerGlow.className = "absolute inset-0 opacity-20 rounded-2xl blur-xl bg-pink-500";
+        }
+
+        document.getElementById('game-over-modal').classList.remove('hidden');
+
+        // 축하 박수 소리 발동
+        playApplauseSound();
+      }
+    }
+
+    // --- 스킬 쿨타임 UI 디스플레이 갱신 로직 ---
+    function updateSkillButtonsUI() {
+      if (gameState !== 'playing') return;
+
+      const now = Date.now();
+
+      // P1 UI 반영
+      if (p1SelectedChar === 'cheetah') {
+        document.getElementById('p1-skill-cd-label').innerText = "PASSIVE";
+        document.getElementById('p1-skill-btn').style.opacity = "0.4";
+      } else {
+        const p1Limit = P1_SKILL_LIMIT[p1SelectedChar];
+        const p1Elapsed = now - p1SkillLastUsed;
+        if (p1Elapsed < p1Limit) {
+          const remainingSec = Math.ceil((p1Limit - p1Elapsed) / 1000);
+          document.getElementById('p1-skill-cd-label').innerText = `${remainingSec}S`;
+          document.getElementById('p1-skill-btn').style.opacity = "0.3";
+        } else {
+          document.getElementById('p1-skill-cd-label').innerText = p1OgreQueued ? "ACTIVE" : "READY";
+          document.getElementById('p1-skill-btn').style.opacity = p1OgreQueued ? "1" : "0.85";
+        }
+      }
+
+      // P2 UI 반영
+      if (p2SelectedChar === 'cheetah') {
+        document.getElementById('p2-skill-cd-label').innerText = "PASSIVE";
+        document.getElementById('p2-skill-btn').style.opacity = "0.4";
+      } else {
+        const p2Limit = P2_SKILL_LIMIT[p2SelectedChar];
+        const p2Elapsed = now - p2SkillLastUsed;
+        if (p2Elapsed < p2Limit) {
+          const remainingSec = Math.ceil((p2Limit - p2Elapsed) / 1000);
+          document.getElementById('p2-skill-cd-label').innerText = `${remainingSec}S`;
+          document.getElementById('p2-skill-btn').style.opacity = "0.3";
+        } else {
+          document.getElementById('p2-skill-cd-label').innerText = p2OgreQueued ? "ACTIVE" : "READY";
+          document.getElementById('p2-skill-btn').style.opacity = p2OgreQueued ? "1" : "0.85";
+        }
+      }
+    }
+
+    // --- 물리 업데이트 루프 ---
+    function updatePhysics() {
+      if (gameState !== 'playing') return;
+
+      const now = Date.now();
+      const deltaTime = now - lastTime;
+      lastTime = now;
+
+      // 버프 및 디버프 상태 디크리먼트
+      if (p1FrozenTimer > 0) p1FrozenTimer -= deltaTime;
+      if (p2FrozenTimer > 0) p2FrozenTimer -= deltaTime;
+
+      // 1. 패들 움직임 계산 (빙결 시 움직임 정지)
+      // Player 1 (왼쪽)
+      if (p1FrozenTimer <= 0) {
+        let p1Dir = 0;
+        if (keys['KeyW']) p1Dir = -1;
+        else if (keys['KeyS']) p1Dir = 1;
+        else if (joyState.left.active) p1Dir = joyState.left.val;
+
+        p1Paddle.y += p1Dir * paddleSpeed;
+      }
+
+      // Player 2 (오른쪽)
+      if (p2FrozenTimer <= 0) {
+        let p2Dir = 0;
+        if (keys['ArrowUp']) p2Dir = -1;
+        else if (keys['ArrowDown']) p2Dir = 1;
+        else if (joyState.right.active) p2Dir = joyState.right.val;
+
+        p2Paddle.y += p2Dir * paddleSpeed;
+      }
+
+      // 패들 맵 이탈 금지 제한
+      p1Paddle.y = Math.max(10, Math.min(virtualHeight - paddleHeight - 10, p1Paddle.y));
+      p2Paddle.y = Math.max(10, Math.min(virtualHeight - paddleHeight - 10, p2Paddle.y));
+
+      // 2. 공 이동 계산
+      ball.x += ball.vx;
+      ball.y += ball.vy;
+
+      // 천장/바닥 경계 충돌
+      if (ball.y - ball.size/2 <= 0) {
+        ball.y = ball.size/2;
+        ball.vy = -ball.vy;
+      } else if (ball.y + ball.size/2 >= virtualHeight) {
+        ball.y = virtualHeight - ball.size/2;
+        ball.vy = -ball.vy;
+      }
+
+      // 3. 패들 충돌 연산 및 스킬 개입
+      // P1 (왼쪽) 패들 충돌 검사
+      if (ball.vx < 0 && 
+          ball.x - ball.size/2 <= p1Paddle.x + p1Paddle.width && 
+          ball.x + ball.size/2 >= p1Paddle.x && 
+          ball.y >= p1Paddle.y && 
+          ball.y <= p1Paddle.y + p1Paddle.height) {
+        
+        let multiplier = speedMultiplier; // 기본가속 1.2배
+
+        // 스킬 연산 체크
+        if (p1SelectedChar === 'cheetah') {
+          multiplier = 1.3; // 치타 패시브 가속 1.3배 적용
+        }
+
+        if (p1OgreQueued) {
+          multiplier = 1.5; // 오거 액티브 발동 시 가속 1.5배 우선 적용
+          p1OgreQueued = false; // 일회성이므로 소진
+          playOgreHitSound();
+        } else {
+          playHitSound();
+        }
+
+        ball.speed = Math.min(ball.speed * multiplier, maxSpeed);
+
+        const randomAngleDeg = (Math.random() * 40) - 20; // 요청사항: -20도 ~ 20도 완전 랜덤 굴절
+        const angleRad = randomAngleDeg * (Math.PI / 180);
+
+        ball.vx = ball.speed * Math.cos(angleRad);
+        ball.vy = ball.speed * Math.sin(angleRad);
+        
+        ball.x = p1Paddle.x + p1Paddle.width + ball.size/2 + 2;
+      }
+
+      // P2 (오른쪽) 패들 충돌 검사
+      if (ball.vx > 0 && 
+          ball.x + ball.size/2 >= p2Paddle.x && 
+          ball.x - ball.size/2 <= p2Paddle.x + p2Paddle.width && 
+          ball.y >= p2Paddle.y && 
+          ball.y <= p2Paddle.y + p2Paddle.height) {
+        
+        let multiplier = speedMultiplier;
+
+        if (p2SelectedChar === 'cheetah') {
+          multiplier = 1.3; // 치타 패시브 가속 1.3배 적용
+        }
+
+        if (p2OgreQueued) {
+          multiplier = 1.5; // 오거 액티브 가속 1.5배 적용
+          p2OgreQueued = false;
+          playOgreHitSound();
+        } else {
+          playHitSound();
+        }
+
+        ball.speed = Math.min(ball.speed * multiplier, maxSpeed);
+
+        const randomAngleDeg = (Math.random() * 40) - 20;
+        const angleRad = (180 - randomAngleDeg) * (Math.PI / 180); // 대칭 보정
+
+        ball.vx = ball.speed * Math.cos(angleRad);
+        ball.vy = ball.speed * Math.sin(angleRad);
+
+        ball.x = p2Paddle.x - ball.size/2 - 2;
+      }
+
+      // 4. 득점 규칙 적용
+      if (ball.x + ball.size/2 < 0) {
+        p2Score += 1;
+        document.getElementById('p2-score').innerText = p2Score;
+        checkGameOver();
+        if (gameState === 'playing') resetBall(1);
+      }
+      else if (ball.x - ball.size/2 > virtualWidth) {
+        p1Score += 1;
+        document.getElementById('p1-score').innerText = p1Score;
+        checkGameOver();
+        if (gameState === 'playing') resetBall(2);
+      }
+
+      // UI 상태 즉각 동기화
+      updateSkillButtonsUI();
+    }
+
+    // --- 캔버스 드로잉 ---
+    function draw() {
+      ctx.fillStyle = '#090d16';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.save();
+      const scaleX = canvas.width / virtualWidth;
+      const scaleY = canvas.height / virtualHeight;
+      ctx.scale(scaleX, scaleY);
+
+      // 1. 가운데 네트선 (점선)
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.lineWidth = 4;
+      ctx.setLineDash([15, 15]);
+      ctx.beginPath();
+      ctx.moveTo(virtualWidth / 2, 10);
+      ctx.lineTo(virtualWidth / 2, virtualHeight - 10);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 2. 플레이어 1 패들 드로잉 (빙결 시 얼음 레이어 씌움)
+      if (p1FrozenTimer > 0) {
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = '#38bdf8';
+        ctx.fillStyle = '#bae6fd'; // 하얗고 차가운 눈빛
+      } else {
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = p1Paddle.glowColor;
+        ctx.fillStyle = p1Paddle.color;
+      }
+      ctx.beginPath();
+      ctx.roundRect(p1Paddle.x, p1Paddle.y, p1Paddle.width, p1Paddle.height, 4);
+      ctx.fill();
+
+      // 빙결 시 시각적 서리 실루엣 드로잉
+      if (p1FrozenTimer > 0) {
+        ctx.strokeStyle = '#0284c7';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      // 3. 플레이어 2 패들 드로잉
+      if (p2FrozenTimer > 0) {
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = '#38bdf8';
+        ctx.fillStyle = '#bae6fd';
+      } else {
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = p2Paddle.glowColor;
+        ctx.fillStyle = p2Paddle.color;
+      }
+      ctx.beginPath();
+      ctx.roundRect(p2Paddle.x, p2Paddle.y, p2Paddle.width, p2Paddle.height, 4);
+      ctx.fill();
+
+      if (p2FrozenTimer > 0) {
+        ctx.strokeStyle = '#0284c7';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      // 4. 공 드로잉 (오거가 사용되면 붉은 불꽃, 그 외 일반 형광 청백색)
+      if (gameState === 'playing') {
+        if (p1OgreQueued || p2OgreQueued) {
+          ctx.shadowColor = '#ef4444'; // 위험한 오거 에너지 가속
+          ctx.shadowBlur = 20;
+          ctx.fillStyle = '#f87171';
+        } else {
+          ctx.shadowColor = '#00f2ff';
+          ctx.shadowBlur = 12;
+          ctx.fillStyle = '#ffffff';
+        }
+        ctx.beginPath();
+        ctx.roundRect(ball.x - ball.size/2, ball.y - ball.size/2, ball.size, ball.size, 3);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+
+    // --- 가변 디바이스 대응 해상도 조절 ---
+    function resizeCanvas() {
+      const container = document.getElementById('game-container');
+      const rect = container.getBoundingClientRect();
+      const header = document.querySelector('div.bg-\\[\\#0d131f\\]\\/90');
+      const headerHeight = header ? header.offsetHeight : 60;
+
+      canvas.width = rect.width - 8;
+      canvas.height = rect.height - headerHeight - 8;
+    }
+
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+      draw();
+    });
+
+    // --- 무한 루프 ---
+    function loop() {
+      updatePhysics();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    // --- UI 흐름 이벤트 바인딩 ---
+    
+    // 시작 버튼 -> 캐릭터 선택 모달로 진입
+    document.getElementById('btn-to-char-select').addEventListener('click', () => {
+      initAudio();
+      document.getElementById('start-modal').classList.add('hidden');
+      document.getElementById('char-select-modal').classList.remove('hidden');
+    });
+
+    // 플레이어 1 캐릭터 카드 선택
+    const p1OgreBtn = document.getElementById('p1-char-ogre');
+    const p1CheetahBtn = document.getElementById('p1-char-cheetah');
+    const p1BearBtn = document.getElementById('p1-char-bear');
+
+    function clearP1Selections() {
+      p1OgreBtn.className = p1OgreBtn.className.replace(' border-cyan-500 bg-cyan-950/40 shadow-md', ' border-slate-800 bg-[#0c1220]');
+      p1CheetahBtn.className = p1CheetahBtn.className.replace(' border-cyan-500 bg-cyan-950/40 shadow-md', ' border-slate-800 bg-[#0c1220]');
+      p1BearBtn.className = p1BearBtn.className.replace(' border-cyan-500 bg-cyan-950/40 shadow-md', ' border-slate-800 bg-[#0c1220]');
+    }
+
+    p1OgreBtn.addEventListener('click', () => {
+      clearP1Selections();
+      p1SelectedChar = 'ogre';
+      p1OgreBtn.className = p1OgreBtn.className.replace('border-slate-800 bg-[#0c1220]', 'border-cyan-500 bg-cyan-950/40 shadow-md');
+      checkSelectionComplete();
+    });
+
+    p1CheetahBtn.addEventListener('click', () => {
+      clearP1Selections();
+      p1SelectedChar = 'cheetah';
+      p1CheetahBtn.className = p1CheetahBtn.className.replace('border-slate-800 bg-[#0c1220]', 'border-cyan-500 bg-cyan-950/40 shadow-md');
+      checkSelectionComplete();
+    });
+
+    p1BearBtn.addEventListener('click', () => {
+      clearP1Selections();
+      p1SelectedChar = 'bear';
+      p1BearBtn.className = p1BearBtn.className.replace('border-slate-800 bg-[#0c1220]', 'border-cyan-500 bg-cyan-950/40 shadow-md');
+      checkSelectionComplete();
+    });
+
+    // 플레이어 2 캐릭터 카드 선택
+    const p2OgreBtn = document.getElementById('p2-char-ogre');
+    const p2CheetahBtn = document.getElementById('p2-char-cheetah');
+    const p2BearBtn = document.getElementById('p2-char-bear');
+
+    function clearP2Selections() {
+      p2OgreBtn.className = p2OgreBtn.className.replace(' border-pink-500 bg-pink-950/40 shadow-md', ' border-slate-800 bg-[#0c1220]');
+      p2CheetahBtn.className = p2CheetahBtn.className.replace(' border-pink-500 bg-pink-950/40 shadow-md', ' border-slate-800 bg-[#0c1220]');
+      p2BearBtn.className = p2BearBtn.className.replace(' border-pink-500 bg-pink-950/40 shadow-md', ' border-slate-800 bg-[#0c1220]');
+    }
+
+    p2OgreBtn.addEventListener('click', () => {
+      clearP2Selections();
+      p2SelectedChar = 'ogre';
+      p2OgreBtn.className = p2OgreBtn.className.replace('border-slate-800 bg-[#0c1220]', 'border-pink-500 bg-pink-950/40 shadow-md');
+      checkSelectionComplete();
+    });
+
+    p2CheetahBtn.addEventListener('click', () => {
+      clearP2Selections();
+      p2SelectedChar = 'cheetah';
+      p2CheetahBtn.className = p2CheetahBtn.className.replace('border-slate-800 bg-[#0c1220]', 'border-pink-500 bg-pink-950/40 shadow-md');
+      checkSelectionComplete();
+    });
+
+    p2BearBtn.addEventListener('click', () => {
+      clearP2Selections();
+      p2SelectedChar = 'bear';
+      p2BearBtn.className = p2BearBtn.className.replace('border-slate-800 bg-[#0c1220]', 'border-pink-500 bg-pink-950/40 shadow-md');
+      checkSelectionComplete();
+    });
+
+    // 두 명이 모두 캐릭터를 골랐는지 실시간 검증
+    const btnStartGame = document.getElementById('btn-start-game');
+    function checkSelectionComplete() {
+      if (p1SelectedChar && p2SelectedChar) {
+        btnStartGame.removeAttribute('disabled');
+        btnStartGame.className = "w-full py-3.5 bg-gradient-to-r from-cyan-500 to-pink-500 hover:from-cyan-400 hover:to-pink-400 text-white font-bold text-base rounded-xl cursor-pointer transition duration-150 transform hover:scale-102 uppercase tracking-wider shadow-lg shadow-cyan-500/10";
+        btnStartGame.innerText = "전투 입장";
+      }
+    }
+
+    // 캐릭터 선택 후 게임 시작
+    btnStartGame.addEventListener('click', () => {
+      if (!p1SelectedChar || !p2SelectedChar) return;
+      document.getElementById('char-select-modal').classList.add('hidden');
+      initGame();
+      lastTime = Date.now(); // 시각 조율 동기화
+      gameState = 'playing';
+    });
+
+    // 다시 하기 버튼 클릭 시 캐릭터 고르기 오버레이로 다시 전환
+    document.getElementById('btn-restart').addEventListener('click', () => {
+      document.getElementById('game-over-modal').classList.add('hidden');
+      document.getElementById('char-select-modal').classList.remove('hidden');
+    });
+
+    window.onload = function() {
+      resizeCanvas();
+      loop();
+    };
+  </script>
+</body>
+</html>
