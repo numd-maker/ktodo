@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>디지털 공부방</title>
+    <title>나만의 디지털 공부방</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & Babel CDN -->
@@ -24,9 +24,11 @@
             const [selectedCategory, setSelectedCategory] = useState("수학");
             const [editingId, setEditingId] = useState(null);
             const [editText, setEditText] = useState("");
+            
             const [showCelebration, setShowCelebration] = useState(false);
             const [showTimerEnd, setShowTimerEnd] = useState(false);
-            const [timer, setTimer] = useState(1500);
+            
+            const [timer, setTimer] = useState(1500); 
             const [timerInput, setTimerInput] = useState(25);
             const [isActive, setIsActive] = useState(false);
 
@@ -70,6 +72,7 @@
 
             const deleteTask = (id) => setTasks(tasks.filter(t => t.id !== id));
             const progress = tasks.length === 0 ? 0 : Math.round((tasks.filter(t => t.completed).length / tasks.length) * 100);
+            const strokeDashoffset = 251.2 - (251.2 * progress) / 100;
 
             return (
                 <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans relative">
@@ -85,14 +88,31 @@
                     )}
 
                     <header className="mb-8 text-center"><h1 className="text-3xl font-bold">나만의 디지털 공부방</h1></header>
+                    
                     <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="bg-white p-6 rounded-2xl shadow-lg border-2 flex flex-col items-center">
-                            <h3 className="font-bold mb-2">집중 타이머</h3>
-                            {!isActive ? (
-                                <div className="mb-4"><input type="number" value={timerInput} onChange={(e) => setTimerInput(Math.max(1, parseInt(e.target.value)||0))} className="w-16 p-2 text-center border rounded"/> 분</div>
-                            ) : (<div className="text-4xl font-bold mb-4">{formatTime(timer)}</div>)}
-                            <button onClick={toggleTimer} className={`px-4 py-2 rounded ${isActive ? 'bg-amber-500' : 'bg-green-600'} text-white`}>{isActive ? '정지' : '시작'}</button>
+                        {/* 왼쪽: 타이머 및 진행률 */}
+                        <div className="flex flex-col gap-8">
+                            <div className="bg-white p-6 rounded-2xl shadow-lg border-2 flex flex-col items-center">
+                                <h3 className="font-bold mb-2">집중 타이머</h3>
+                                {!isActive ? (
+                                    <div className="mb-4"><input type="number" value={timerInput} onChange={(e) => setTimerInput(Math.max(1, parseInt(e.target.value)||0))} className="w-16 p-2 text-center border rounded"/> 분</div>
+                                ) : (<div className="text-4xl font-bold mb-4">{formatTime(timer)}</div>)}
+                                <button onClick={toggleTimer} className={`px-4 py-2 rounded ${isActive ? 'bg-amber-500' : 'bg-green-600'} text-white`}>{isActive ? '정지' : '시작'}</button>
+                            </div>
+                            
+                            <div className="bg-white p-6 rounded-2xl shadow-lg border-2 flex flex-col items-center">
+                                <div className="relative w-40 h-40">
+                                    <svg className="w-full h-full -rotate-90">
+                                        <circle cx="80" cy="80" r="40" stroke="currentColor" strokeWidth="10" fill="transparent" className="text-slate-200" />
+                                        <circle cx="80" cy="80" r="40" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray="251.2" strokeDashoffset={strokeDashoffset} className="text-indigo-600 transition-all duration-500" />
+                                    </svg>
+                                    <div className="absolute inset-0 flex items-center justify-center font-bold text-xl">{progress}%</div>
+                                </div>
+                                <h2 className="text-lg font-semibold mt-2">전체 진행률</h2>
+                            </div>
                         </div>
+
+                        {/* 오른쪽: 숙제 목록 */}
                         <div className="bg-white p-6 rounded-2xl shadow-lg border-2">
                             <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="w-full p-2 mb-2 border rounded">
                                 {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
